@@ -1,0 +1,89 @@
+---
+# vim: set ft=ansible:
+
+- name: Setup ocp software
+  gather_facts: false
+  hosts: localhost
+  connection: local
+  vars_files:
+    - ../vars/default.yml 
+  tasks:
+
+    - name: Make prereq directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ install_dir }}"
+        - "{{ scratch_bins }}"
+
+    - name: Check OpenShift Installer
+      ansible.builtin.command:
+        cmd: "{{ scratch_bins }}/openshift-install version"
+      ignore_errors: true
+      register: openshift_install_version
+
+    - name: Unpack OpenShift Installer
+      ansible.builtin.unarchive:
+        remote_src: yes
+        src: "{{ openshift_installer_url }}"
+        dest: "{{ scratch_bins }}"
+      when:
+        - openshift_install_version is failed
+
+    - name: Install OpenShift CLI tools
+      block:
+
+        - name: Check OpenShift Client
+          ansible.builtin.command:
+            cmd: "{{ scratch_bins }}/oc version --client"
+          ignore_errors: true
+          register: oc_version
+
+        - name: Unpack OpenShift Client
+          ansible.builtin.unarchive:
+            remote_src: yes
+            src: "{{ oc_url }}"
+            dest: "{{ scratch_bins }}"
+          when:
+            - oc_version is failed
+
+        - name: Check opm
+          ansible.builtin.command:
+            cmd: "{{ scratch_bins }}/opm version"
+          ignore_errors: true
+          register: opm_version
+
+        - name: Unpack opm
+          ansible.builtin.unarchive:
+            remote_src: yes
+            src: "{{ opm_url }}"
+            dest: "{{ scratch_bins }}"
+          when:
+            - opm_version is failed
+
+        - name: Check butane
+          ansible.builtin.command:
+            cmd: "{{ scratch_bins }}/butane --version"
+          ignore_errors: true
+          register: butane_check
+
+        - name: Unpack butane
+          ansible.builtin.get_url:
+            url: "{{ butane_url }}"
+            dest: "{{ scratch_bins }}/butane"
+            mode: 0755
+          when: butane_check is failed
+
+        - name: Install apps to {{ bin_dir }}
+          ansible.builtin.copy:
+            src: "{{ scratch_bins }}/{{ item }}"
+            dest: "{{ bin_dir }}"
+            mode: 0755
+            force: true
+          loop:
+            - "oc"
+            - "opm"
+            - "butane"
+
+      when: run_local | default(false)

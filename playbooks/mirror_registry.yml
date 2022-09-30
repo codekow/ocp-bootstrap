@@ -1,0 +1,12 @@
+
+
+    - set_fact:
+        ocp_client_version: "{{ ocp_version.split('latest-')[1] if ('latest' in ocp_version) else ocp_version.split('.')[:2]|join('.') }}"
+
+    - name: Mirror OpenShift {{ ocp_client_version }} images to disconnected registry
+      ansible.builtin.shell: >
+        oc adm release mirror -a {{ scratch_dir }}/merged-pull-secret.json
+        --from quay.io/openshift-release-dev/ocp-release:{{ ocp_client_version}}-x86_64
+        --to=ocp4-bastion.aio.example.com:5000/ocp4/openshift4
+      when: false
+

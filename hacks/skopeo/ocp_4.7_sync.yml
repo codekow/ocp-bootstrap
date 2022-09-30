@@ -1,0 +1,8 @@
+git.tigerlab.io:6666:
+  images-by-tag-regex:
+    ocp/ocp-release: ^4.7.*$
+  credentials:
+    username: dummy
+    password: dummy
+
+

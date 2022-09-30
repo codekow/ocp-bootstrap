@@ -1,0 +1,160 @@
+---
+# vim: set ft=ansible:
+
+- name: Add Registry to Inventory
+  hosts: localhost
+  vars_files: ../vars/default.yml
+  tasks:
+
+    - name: Delete any existing inventory.yml file
+      ansible.builtin.file:
+        path: ../inventory/registry.yml
+        state: absent
+
+    - name: Dynamically add registry to the inventory
+      add_host:
+        ansible_ssh_user: ansible
+        hostname: "{{ registry_host }}"
+        groups: registry
+
+    - name: Insert registry into inventory file
+      ini_file:
+        dest: ../inventory/registry.yml
+        section: registry
+        option: "{{ registry_host }} ansible_ssh_user=root"
+        mode: 0600
+        state: present
+        backup: no
+        allow_no_value: yes
+
+    - name: Insert SSH proxy information into inventory file for registry VM
+      ini_file:
+        dest: ../inventory/registry.yml
+        section: registry:vars
+        option: "{{ registry_host }} ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new'"
+        mode: 0600
+        state: present
+        backup: no
+        allow_no_value: yes
+
+    - meta: refresh_inventory
+
+    - name: Manually build OpenSSL certificate
+      connection: local
+      ansible.builtin.shell: >
+        openssl req -newkey rsa:4096 -nodes -sha256 -keyout {{ scratch_dir }}/{{ registry_host }}.key
+        -x509 -days 365 -out {{ scratch_dir }}/{{ registry_host }}.crt -subj
+        "/C=US/ST=NorthCarolina/L=Raleigh/O=Red Hat/OU=Marketing/CN={{ registry_host }}"
+        -addext "subjectAltName = DNS:{{ registry_host }}" -addext "certificatePolicies = 1.2.3.4"
+
+
+- name: Deploy Registry
+  gather_facts: false
+  hosts: registry
+  vars_files: ../vars/default.yml
+  vars:
+    registry_path: /opt/registry
+    virtualenv_path: /tmp/k8s
+  tasks:
+
+    - name: Ensure Registry machine is available
+      wait_for_connection:
+        timeout: 120
+      register: result
+      until: result is succeeded
+      retries: 3
+      delay: 30
+
+    - name: Copy over k8s env requirements.txt
+      ansible.builtin.copy:
+        src: ../conf/k8s/requirements.txt
+        dest: /tmp/requirements.txt
+
+    - name: "Create python venv"
+      pip:
+        requirements: "/tmp/requirements.txt"
+        virtualenv: "{{ virtualenv_path }}"
+        virtualenv_site_packages: true
+        virtualenv_command: "python3 -m venv"
+
+    - name: "Set Ansible interpreter to venv"
+      set_fact:
+        ansible_python_interpreter: "{{ virtualenv_path }}/bin/python"
+
+    - name: Ensure podman is available
+      dnf:
+        name:
+          - podman
+          - firewalld
+        state: latest
+      become: True
+
+    - name: Make Registry directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: 0750
+        recurse: yes
+      loop:
+        - "{{ registry_path }}/auth"
+        - "{{ registry_path }}/certs"
+        - "{{ registry_path }}/data"
+
+    - name: Copy SSL certificates to registry
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ registry_path }}/certs"
+        force: no
+      loop:
+        - "{{ scratch_dir }}/{{ registry_host }}.key"
+        - "{{ scratch_dir }}/{{ registry_host }}.crt"
+
+    - name: Enable Disconnected Registry port in firewall
+      firewalld:
+        permanent: yes
+        state: enabled
+        port: "{{ registry_port }}/tcp"
+
+    - name: Reload Firewalld
+      ansible.builtin.command: firewall-cmd --reload
+      register: firewalld_return
+      failed_when: firewalld_return.rc > 0
+
+    - name: Copy SSL certificate to trust store
+      ansible.builtin.copy:
+        remote_src: yes
+        src: "{{ registry_path }}/certs/{{ registry_host }}.crt"
+        dest: /etc/pki/ca-trust/source/anchors
+
+    - name: Update the CA trust
+      ansible.builtin.command: /usr/bin/update-ca-trust extract
+
+    - name: Generate htpasswd file for dummy user
+      htpasswd:
+        path: "{{ registry_path }}/auth/htpasswd"
+        username: "{{ registry_user }}"
+        password: "{{ registry_pass }}"
+        crypt_scheme: bcrypt
+
+    - name: Pull the Disconnected Registry container image
+      containers.podman.podman_image:
+        name: "quay.io/roxenham/registry:3"
+
+    - name: Start the registry server via Podman
+      containers.podman.podman_container:
+        name: container-registry
+        state: present
+        image: quay.io/roxenham/registry:3
+        volume:
+          - "{{ registry_path }}/data:/var/lib/registry:z"
+          - "{{ registry_path }}/auth:/auth:z"
+          - "{{ registry_path }}/certs:/certs:z"
+        ports:
+        - "{{ registry_port }}:5000"
+        env:
+          REGISTRY_AUTH: htpasswd
+          REGISTRY_AUTH_HTPASSWD_REALM: Registry
+          REGISTRY_HTTP_SECRET: ALongRandomSecretForRegistry
+          REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+          REGISTRY_HTTP_TLS_CERTIFICATE: /certs/{{ registry_host }}.crt
+          REGISTRY_HTTP_TLS_KEY: /certs/{{ registry_host }}.key

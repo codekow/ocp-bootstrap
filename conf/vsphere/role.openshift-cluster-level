@@ -1,0 +1,8 @@
+Host.Config.Storage
+Resource.AssignVMToPool
+System.Anonymous
+System.Read
+System.View
+VApp.AssignResourcePool
+VApp.Import
+VirtualMachine.Config.AddNewDisk

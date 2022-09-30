@@ -1,0 +1,38 @@
+---
+infra_platform: vsphere
+
+# the section below could be cut and pasted from the openshift-install.yaml
+platform:
+  vsphere:
+    vcenter: < hostname / ip >
+    username: < username >
+    password: < password >
+    datacenter: < datacenter >
+    cluster: < cluster >
+    defaultDatastore: < datastore >
+    folder: /< datacenter >/vm/< folder path >/
+    network: < network >
+    apiVIP: < api ip >
+    ingressVIP: < ingress ip >
+
+# select ocp_version from the folder list at the URL below
+# https://mirror.openshift.com/pub/openshift-v4/clients/ocp
+ocp_version: "latest-4.7"
+
+# domain name setup
+# url: < name >.< base domain >
+ocp_name: < name >
+ocp_basedomain: < base domain >
+
+# installer pull secret
+ocp_pullsecret: < pull secret >
+
+# ssh public key for accessing nodes
+my_authorized_keys: |
+  < authorized_keys >
+
+# uncomment the following to use a registry mirror
+#registry_host: < registry host >
+#registry_port: < registry port >
+#registry_user: < registry username >
+#registry_pass: < registry password >

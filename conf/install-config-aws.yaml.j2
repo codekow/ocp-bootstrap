@@ -1,0 +1,50 @@
+---
+apiVersion: v1
+baseDomain: {{ ocp_basedomain }}
+compute:
+- hyperthreading: Enabled
+  architecture: amd64
+  name: worker
+  replicas: 3
+  platform:
+    aws:
+      type: m5a.2xlarge
+controlPlane:
+  hyperthreading: Enabled
+  name: master
+  replicas: 3
+  platform:
+    aws:
+      type: m5a.xlarge
+metadata:
+  name: {{ ocp_name }}
+networking:
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: 10.1.20.0/24
+  networkType: OpenShiftSDN
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  aws:
+{% for key, value in platform.aws.items() %}
+    {{ key }}: {{ value }}
+{% endfor %}
+fips: false
+publish: External
+pullsecret: '{{ ocp_pullsecret }}'
+sshKey: |
+  {{ my_authorized_keys }}
+
+{% if registry_host is defined %}
+imageContentSources:
+- mirrors:
+  - {{ registry_host }}:{{ registry_port }}/ocp/ocp-release
+  source: quay.io/openshift-release-dev/ocp-release
+- mirrors:
+  - {{ registry_host }}:{{ registry_port }}/ocp/ocp-release
+  source: quay.io/openshift-release-dev/ocp-v4.0-art-dev
+{% endif %}
+

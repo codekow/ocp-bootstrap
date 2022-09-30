@@ -1,0 +1,23 @@
+---
+# default directories
+# due to a bug in the unarchive modules you have to add {{ playbook_dir }}
+# to relative paths more than one folder deep (ex: dir1/dir2)
+scratch_dir: "{{ playbook_dir }}/../generated"
+scratch_bins: "{{ scratch_dir }}/bins"
+install_dir: "{{ scratch_dir }}/{{ ocp_name}}.{{ ocp_basedomain }}"
+bin_dir: "~/bin"
+
+# ocp downloads
+ocp_version: "{{ ocp_version | default('latest-4.8') }}"
+oc_url: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ ocp_version }}/openshift-client-linux.tar.gz"
+opm_url: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ ocp_version }}/opm-linux.tar.gz"
+openshift_installer_url: "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ ocp_version }}/openshift-install-linux.tar.gz"
+butane_url: "https://mirror.openshift.com/pub/openshift-v4/clients/butane/latest/butane"
+
+# k8s downloads
+argocd_url: "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64" 
+helm_url: "https://get.helm.sh/helm-v3.6.3-linux-amd64.tar.gz"
+kustomize_url: "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v4.2.0/kustomize_v4.2.0_linux_amd64.tar.gz"
+
+# vsphere downloads
+govc_url: "https://github.com/vmware/govmomi/releases/download/v0.26.1/govc_Linux_x86_64.tar.gz"

@@ -1,0 +1,24 @@
+docker.io:
+  images:
+      #busybox: []
+      alpine:
+        - "3"
+        - "latest"
+  images-by-tag-regex:
+      nginx: ^1\.13\.[12]-alpine-perl$
+  #credentials:
+  #    username: john
+  #    password: this is a secret
+
+registry.access.redhat.com:
+  images:
+    ubi8:
+      - 8.4
+      - latest
+    ubi7:
+      - 7.9
+      - latest
+
+git.tigerlab.io:6666:
+  images:
+    ocp/release: []

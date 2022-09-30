@@ -1,0 +1,46 @@
+---
+# vim: set ft=ansible:
+
+- name: Configure local software
+  gather_facts: true
+  connection: local
+  vars_files:
+    - ../vars/default.yml
+  vars:
+    #ansible_python_interpreter: {{ansible_playbook_python}}
+    ansible_python_interpreter: /usr/bin/python3
+  hosts: localhost
+  tasks:
+
+    - name: Check system matches requirements
+      assert:
+        that:
+          - ansible_memtotal_mb >= 3072
+
+    - name: Install required base packages
+      yum:
+        name:
+          - python3
+          - python3-pip
+          - unzip
+        state: latest
+      become: True
+      when: run_local
+
+    - name: Create SSH keypair
+      openssh_keypair:
+        path: "~/.ssh/id_rsa"
+        type: rsa
+        size: 4096
+        state: present
+        force: no
+      when: run_local
+
+    - name: Make prereq directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ bin_dir }}"
+        - "{{ install_dir }}"
+        - "{{ scratch_bins }}"

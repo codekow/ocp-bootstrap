@@ -1,0 +1,105 @@
+---
+# vim: set ft=ansible:
+
+- name: Setup VMware Certs
+  import_playbook: setup_vsphere.yml
+  when: ( "vsphere" in platform ) and ( run_local | default(false) )
+
+- name: Configure Bastion machine
+  gather_facts: false
+  hosts: localhost
+  vars_files:
+    - ../vars/default.yml
+  tasks:
+
+    - name: Create {{ install_dir }} directory
+      ansible.builtin.file:
+        path: "{{ install_dir }}"
+        state: directory
+
+    - name: Copy install-config.yaml to {{ install_dir }}
+      ansible.builtin.template:
+        src: "../conf/install-config-{{ infra_platform }}.yaml.j2"
+        dest: "{{ install_dir }}/install-config.yaml"
+
+    - name: Create pull-secret file
+      ansible.builtin.lineinfile:
+        path: "{{ scratch_dir }}/pull-secret.json"
+        line: "{{ ocp_pullsecret | string }}"
+        create: yes
+        mode: 0640
+
+    - name: Run OpenShift Installation to create manifest
+      ansible.builtin.command:
+        argv:
+          - "{{ scratch_bins }}/openshift-install"
+          - --dir={{ install_dir }} 
+          - --log-level=debug
+          - create
+          - manifest
+
+    - name: Run OpenShift Installation for IPI (wait 10 mins before continuing)
+      ansible.builtin.command:
+        argv:
+          - "{{ scratch_bins }}/openshift-install"
+          - --dir={{ install_dir }} 
+          - --log-level=debug
+          - create
+          - cluster
+      ignore_errors: true
+      register: ipi_install
+      async: 600
+      poll:  30
+
+    - name: Print Kube Configuration
+      vars:
+        msg: |
+          Run the following in another terminal to monitor deployment w/ oc
+          
+          # create the kubeconfig
+          printf '{{ lookup('file', install_dir + '/auth/kubeconfig') | b64encode }}' | base64 -d > kubeconfig-{{ ocp_name }}.{{ ocp_basedomain }}
+          export KUBECONFIG=$(pwd)/kubeconfig-{{ ocp_name }}.{{ ocp_basedomain }}
+          
+          # watch cluster operators become ready
+          watch 'oc get co; oc get nodes'
+
+          
+      debug:
+        msg: "{{ msg.split('\n') }}"
+
+    - name: Wait for bootstrap-complete for IPI
+      ansible.builtin.command:
+        argv:
+          - "{{ scratch_bins }}/openshift-install"
+          - --dir={{ install_dir }}
+          - --log-level=debug
+          - wait-for
+          - bootstrap-complete
+      when:
+        - ipi_install is failed
+      register: ipi_bootstrap_complete
+      retries: 5
+      until: ipi_bootstrap_complete is not failed
+
+    - name: Cleanup bootstrap node
+      ansible.builtin.command:
+        argv:
+          - "{{ scratch_bins }}/openshift-install"
+          - --dir={{ install_dir }}
+          - --log-level=debug
+          - destroy
+          - bootstrap
+
+    - name: Wait for install-complete for IPI
+      ansible.builtin.command:
+        argv:
+          - "{{ scratch_bins }}/openshift-install"
+          - --dir={{ install_dir }}
+          - --log-level=debug
+          - wait-for
+          - install-complete
+      when:
+        - ipi_install is failed
+      register: ipi_install_complete
+      retries: 5
+      until: ipi_install_complete is not failed

@@ -1,0 +1,19 @@
+---
+# vim: set ft=ansible:
+
+# Check base software
+- import_playbook: "setup_base_software.yml"
+  when: run_local | default(false)
+
+# Setup k8s software
+- import_playbook: "setup_k8s_software.yml"
+  when: run_local | default(false)
+
+# Setup ocp software
+- import_playbook: "setup_ocp_software.yml"
+
+# Run ocp install
+- import_playbook: "deploy_ocp.yml"
+
+# Print Cluster Info to User
+- import_playbook: "finish.yml"

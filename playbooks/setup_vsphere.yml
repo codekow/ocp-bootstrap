@@ -1,0 +1,62 @@
+---
+# vim: set ft=ansible:
+
+- name: Configure Bastion machine
+  gather_facts: false
+  hosts: localhost
+  vars_files:
+    - ../vars/default.yml
+  tasks:
+
+    - name: Download VMware certs
+      ansible.builtin.get_url:
+        url: "http://{{ platform.vsphere.vcenter }}/certs/download.zip"
+        dest: "{{ scratch_dir }}"
+        mode: 0644
+        validate_certs: false
+
+    - name: Unpack VMware certs
+      ansible.builtin.unarchive:
+        remote_src: yes
+        src: "{{ item }}"
+        dest: "{{ scratch_dir }}"
+      loop:
+        - "{{ scratch_dir }}/download.zip"
+
+    - name: Remove VMware download
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ scratch_dir }}/download.zip"
+
+    - name: Install VMware certs
+      become: true
+      ansible.builtin.shell:
+        cmd: "{{ item }}"
+      loop:
+        - "cp {{ scratch_dir }}/certs/lin/* /etc/pki/ca-trust/source/anchors"
+        - "update-ca-trust extract"
+
+    - name: Check govc
+      ansible.builtin.command:
+        cmd: "{{ scratch_bins }}/govc version"
+      ignore_errors: true
+      register: govc_check
+
+    - name: Unpack govc
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "{{ govc_url }}"
+        dest: "{{ scratch_bins }}"
+      when:
+        - govc_check is failed
+
+    - name: Install apps to {{ bin_dir }}
+      ansible.builtin.copy:
+        src: "{{ scratch_bins }}/{{ item }}"
+        dest: "{{ bin_dir }}"
+        mode: 0755
+      loop:
+        - "govc"
+

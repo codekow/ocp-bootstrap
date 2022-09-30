@@ -1,0 +1,61 @@
+---
+# vim: set ft=ansible:
+
+- name: Setup k8s software
+  gather_facts: false
+  hosts: localhost
+  connection: local
+  vars_files:
+    - ../vars/default.yml
+  tasks:
+
+    - name: Check kustomize
+      ansible.builtin.command:
+        cmd: "{{ scratch_bins }}/kustomize version"
+      ignore_errors: true
+      register: kustomize_check
+
+    - name: Unpack kustomize
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "{{ kustomize_url }}"
+        dest: "{{ scratch_bins }}"
+      when:
+        - kustomize_check is failed
+
+    - name: Check argocd
+      ansible.builtin.command:
+        cmd: "{{ scratch_bins }}/argocd version --client"
+      ignore_errors: true
+      register: argocd_check
+
+    - name: Unpack argocd
+      ansible.builtin.get_url:
+        url: "{{ argocd_url }}"
+        dest: "{{ scratch_bins }}/argocd"
+        mode: 0755
+      when: argocd_check is failed
+
+    - name: Check helm
+      ansible.builtin.command:
+        cmd: "{{ scratch_bins }}/linux-amd64/helm version"
+      ignore_errors: true
+      register: helm_check
+
+    - name: Unpack helm
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: "{{ helm_url }}"
+        dest: "{{ scratch_bins }}"
+      when:
+        - helm_check is failed
+
+    - name: Install apps to {{ bin_dir }}
+      ansible.builtin.copy:
+        src: "{{ scratch_bins }}/{{ item }}"
+        dest: "{{ bin_dir }}"
+        mode: 0755
+      loop:
+        - "kustomize"
+        - "argocd"
+        - "linux-amd64/helm"

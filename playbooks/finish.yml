@@ -1,0 +1,41 @@
+---
+# vim: set ft=ansible:
+
+- name: Reload inventory for bastion host
+  gather_facts: false
+  hosts: localhost
+  connection: local
+  vars_files:
+    - ../vars/default.yml
+  tasks:
+
+    - name: Set deployment facts
+      set_fact:
+        kubeadmin_password: "{{ lookup('file', install_dir + '/auth/kubeadmin-password') }}"
+        ocp_console: "https://console-openshift-console.apps.{{ ocp_name }}.{{ ocp_basedomain }}"
+        ocp_api: "https://api.{{ ocp_name }}.{{ ocp_basedomain }}:6443"
+        cluster_metadata: "[{{ lookup('file', install_dir + '/metadata.json') }}]"
+
+    - name: Print Kube Configuration
+      vars:
+        msg: |
+          The console is available at: {{ ocp_console }}
+          The kubeadmin password is: {{ kubeadmin_password }}
+          
+          oc login --insecure-skip-tls-verify -u kubeadmin -p {{ kubeadmin_password }} {{ ocp_api }}
+          
+          {{ cluster_metadata }}
+
+      debug:
+        msg: "{{ msg.split('\n') }}"
+
+    - name: Print metadata.json
+      debug:
+        msg: "{{ cluster_metadata }}"
+
+    - name: Setup oc login
+      ansible.builtin.command:
+        cmd: "{{ item }}"
+      loop:
+        - "oc login --insecure-skip-tls-verify -u kubeadmin -p {{ kubeadmin_password }} {{ ocp_api }}"
+      when: run_local | default(false) 

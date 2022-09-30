@@ -1,0 +1,7 @@
+System.Anonymous
+System.Read
+System.View
+VirtualMachine.Config.Settings
+VirtualMachine.Interact.PowerOff
+VirtualMachine.Interact.PowerOn
+VirtualMachine.Interact.Reset

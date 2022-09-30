@@ -1,0 +1,27 @@
+---
+# vim: set ft=ansible:
+
+- name: Configure Bastion machine
+  gather_facts: false
+  hosts: localhost
+  vars_files:
+    - ../vars/default.yml
+  tasks:
+
+    - name: Destroy OpenShift Installation
+      ansible.builtin.command: >
+        {{ scratch_bins }}/openshift-install
+        --dir={{ install_dir }} --log-level=debug
+        destroy cluster
+      register: ipi_destroy
+
+    - name: Remove {{ install_dir }} directory
+      ansible.builtin.file:
+        path: "{{ install_dir }}"
+        state: absent
+
+    - name: Remove {{ scratch_dir }} directory
+      ansible.builtin.file:
+        path: "{{ scratch_dir }}"
+        state: absent
+      when: false
